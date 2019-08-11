@@ -107,16 +107,21 @@ class TrQBlackScholes():
 
     def function_A_vec(self, t, reg_param=1e-3):
         """ Equation for matrix A
+        self.data : T x N_MC x num_basis
+        self.delta_S_hat : N_MC x T
         :param t:
         :param reg_param:
         :return:
         """
-
         x_data = self.data[t, :, :]
         num_basis_funcs = x_data.shape[1]
         self_dS = self.delta_S_hat[:, t]
-        x_data = x_data.T @  self_dS
-        mat_A = x_data.T @ x_data
+        # hat_dS2 = (self_dS ** 2).reshape(-1, 1)
+        # mat_A = np.dot(x_data.T, x_data * hat_dS2)
+        x_data = x_data.T * self_dS
+        mat_A = x_data @ x_data.T   # Wrong line, its result is scalar ???
+
+
 
         return mat_A + reg_param * np.eye(num_basis_funcs)
 
@@ -124,7 +129,6 @@ class TrQBlackScholes():
         x_data = self.data[t, :, :]
         this_dS = self.delta_S_hat[:, t]
         coef = 1 / (2 * self.gamma * self.risk_lambda)
-        temp = pi_hat * this_dS + coef * self.delta_S[:, t]
         mat_B = x_data.T @ (pi_hat * this_dS + coef * self.delta_S[:, t])
 
         return mat_B
@@ -137,7 +141,6 @@ class TrQBlackScholes():
         for t in range(self.num_steps - 1, -1, -1):
             pi_next = self.pi[:, t + 1]
             pi_next_prime = pi_next + self.tr_alpha * self.opt_hedge[:, t + 1] * self.s_values[:, t + 1]
-            self.pi[:, t] = self.gamma * (pi_next_prime - self.opt_hedge[:, t] * self.delta_S[:, t])
             pi_prime_hat = pi_next_prime - np.mean(pi_next_prime)
 
             mat_A = self.function_A_vec(t, REG_PARAM)
@@ -145,6 +148,7 @@ class TrQBlackScholes():
 
             phi = np.linalg.inv(mat_A) @ vec_B
             self.opt_hedge[:, t] = np.dot(self.data[t, :, :], phi)
+            self.pi[:, t] = self.gamma * (pi_next_prime - self.opt_hedge[:, t] * self.delta_S[:, t])
             self.r[:, t] = self.gamma * self.opt_hedge[:, t] * self.delta_S[:, t] \
                            - self.risk_lambda * np.var(self.pi[:, t])
 

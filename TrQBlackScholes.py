@@ -61,6 +61,7 @@ class TrQBlackScholes():
         self.pi = np.zeros((self.num_paths, self.num_steps + 1), 'float')
         self.pi_hat = np.zeros((self.num_paths, self.num_steps + 1), 'float')
 
+        self.q = np.zeros((self.num_paths, self.num_steps + 1), 'float')
         self.r = np.zeros((self.num_paths, self.num_steps + 1), 'float')
 
     def gen_path(self):
@@ -86,6 +87,7 @@ class TrQBlackScholes():
         self.pi[:, -1] = np.maximum(self.s_values[:, -1] - self.K, 0)
         self.pi_hat[:, -1] = self.pi[:, -1] - np.mean(self.pi[:, -1])
 
+        self.q[:, -1] = -self.pi[:, -1] - self.risk_lambda * np.var(self.pi[:, -1])
         self.r[:, -1] = -self.risk_lambda * np.var(self.pi[:, -1])
 
         p = 4
@@ -133,7 +135,7 @@ class TrQBlackScholes():
 
         return mat_B
 
-    def roll_backward(self):
+    def roll_backward_hedge(self):
         """
         Roll backward and get the price and optimal hedge vals
         :return:
@@ -159,14 +161,29 @@ class TrQBlackScholes():
         return mat_C + reg_param * np.eye(this_data.shape[1])
 
 
-    def function_D_vec(self, t, q_values, r_values):
-        this_q = q_values[:, t + 1]
-        this_r = r_values[:, t]
-        mat_D = this_q @ (this_r + self.opt_hedge[:, t + 1] * self.s_values[:, t + 1])
-        return mat_D
+    def function_D_vec(self, t):
+        this_data = self.data[t, :, :]
+        this_q = self.q[:, t + 1]
+        this_r = self.r[:, t]
+        vec_D = this_data.T @ (this_r + self.gamma * this_q
+                             - self.tr_alpha * self.opt_hedge[:, t + 1] * self.s_values[:, t + 1])
+        return vec_D
+
+    def roll_backward_q(self):
+        """
+        Roll backward to get q values
+        :return:
+        """
+        starttime = time.time()
+        for t in range(self.num_steps - 1, -1, -1):
+            c_mat = self.function_C_vec(t, REG_PARAM)
+            d_vec = self.function_D_vec(t)
+            omega = np.linalg.inv(c_mat) @ d_vec
+
+            self.q[:, t] = self.data[t, :, :] @ omega
+        print("\n Time : ", time.time() - starttime)
 
 
 if __name__ == "__main__":
     trMC = TrQBlackScholes(0.02, 0.2, 100, 1, 0.04, 252, 1000, 0.001, 0.001)
     trMC.gen_path()
-    trMC.roll_backward()

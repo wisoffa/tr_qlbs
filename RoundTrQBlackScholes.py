@@ -1,7 +1,7 @@
 """
 Author : Jiwoo Park
 Date : 2019-08-04
-Desc : Valuing Option Price under Transaction Cost
+Desc : Valuing Option Price under Transaction Cost. Re-hedging with round trip method.
 """
 
 import numpy as np
@@ -20,7 +20,8 @@ import bspline.splinelab as splinelab
 
 REG_PARAM = 1e-3
 
-class TrQBlackScholes():
+
+class RoundTrQBlackScholes:
     def __init__(self,
                  mu: float,
                  vol: float,
@@ -130,7 +131,8 @@ class TrQBlackScholes():
     def function_B_vec(self, t, pi_hat):
         x_data = self.data[t, :, :]
         this_dS = self.delta_S_hat[:, t]
-        coef = 1 / (2 * self.gamma * self.risk_lambda)
+        # coef = 1 / (2 * self.gamma * self.risk_lambda)
+        coef = 0
         mat_B = x_data.T @ (pi_hat * this_dS + coef * self.delta_S[:, t])
 
         return mat_B
@@ -174,16 +176,16 @@ class TrQBlackScholes():
         Roll backward to get q values
         :return:
         """
-        starttime = time.time()
+        start_time = time.time()
         for t in range(self.num_steps - 1, -1, -1):
             c_mat = self.function_C_vec(t, REG_PARAM)
             d_vec = self.function_D_vec(t)
             omega = np.linalg.inv(c_mat) @ d_vec
 
             self.q[:, t] = self.data[t, :, :] @ omega
-        print("\n Time : ", time.time() - starttime)
+        print("\n Time : ", time.time() - start_time)
 
 
 if __name__ == "__main__":
-    trMC = TrQBlackScholes(0.02, 0.2, 100, 1, 0.04, 252, 1000, 0.001, 0.001)
+    trMC = RoundTrQBlackScholes(0.02, 0.2, 100, 1, 0.04, 25200, 1000, 0.001, 0.001)
     trMC.gen_path()
